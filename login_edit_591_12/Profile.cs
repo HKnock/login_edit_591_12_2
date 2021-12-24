@@ -15,7 +15,8 @@ namespace login_edit_591_12
             using (loginEditDatabaseContext db = new loginEditDatabaseContext())
             {
                 if (db.UserInfos.Any(e => e.Nickname == nickname) || db.UserInfos.Any(e => e.Phone == phone_number))
-                    throw new Exception("Пользователь уже зарегестрирован");
+                    throw new Exception("Пользователь уже зарегестрирован\n" +
+                        "Введите команду ещё раз.");
                 UserInfo user = new UserInfo()
                 {
                     Nickname = nickname,
@@ -40,7 +41,8 @@ namespace login_edit_591_12
                 {
                     phone_number = user.Phone;
                     return user.IdQuestionNavigation.QuestionValue; }
-                throw new Exception("Неправильный пароль");
+                throw new Exception("Неправильный пароль\n" +
+                    "Введите команду ещё раз");
             }
         }
 
@@ -136,7 +138,8 @@ namespace login_edit_591_12
             StringBuilder number = new StringBuilder("+");
             phoneNumber = String.Join("", phoneNumber.Split('(', ')', '+', '-', ' '));
             if (phoneNumber.Length != 11)
-                throw new Exception("Телефонный номер введён в неверном формате");
+                throw new Exception("Телефонный номер введён в неверном формате\n" +
+                    "Введите команду ещё раз.");
             if (phoneNumber[0] != 7)
                 number.Append("7" + phoneNumber.Substring(1));
             else

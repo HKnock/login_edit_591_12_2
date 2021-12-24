@@ -6,6 +6,7 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Args;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace login_edit_591_12
 {
@@ -19,11 +20,12 @@ namespace login_edit_591_12
         private static Dictionary<long, int?> idDict = new Dictionary<long, int?>();
         private static Dictionary<long, Command> cmd = new Dictionary<long, Command>();
         private static Dictionary<string, (string command, int counter, int steps)> commandList =
-            new Dictionary<string, (string command, int counter, int steps)> 
+            new Dictionary<string, (string command, int counter, int steps)>
             {
                 { "login" , ("login", 1, 3)},
                 { "register", ("register", 1, 5) },
-                { "edit", ("edit", 1, 2)}
+                { "edit", ("edit", 1, 2)},
+                { "delete", ("delete", 1, 1) }
             };
 
 
@@ -45,7 +47,7 @@ namespace login_edit_591_12
             var mes = e.Message.Text;
             var id = e.Message.Chat.Id;
 
-            if(!msg.ContainsKey(id))
+            if (!msg.ContainsKey(id))
             {
                 msg.Add(id, new List<string>());
                 idDict.Add(id, null);
@@ -68,19 +70,22 @@ namespace login_edit_591_12
                         else
                         {
                             idDict[id] = null;
-                            _loginEditBot.SendTextMessageAsync(id, "Вы вышли из аккаунта"); 
+                            _loginEditBot.SendTextMessageAsync(id, "Вы вышли из аккаунта");
+                            _loginEditBot.SendTextMessageAsync(id, "Выберите команду:\n" +
+                            "Авторизация: /login\n" +
+                            "Регистрация /register");
                         }
                         break;
                     }
                 case "/edit":
                     {
                         if (idDict[id] == null)
-                        { 
+                        {
                             _loginEditBot.SendTextMessageAsync(id, "Авторизуйтесь");
                             break;
                         }
                         msg[id].Clear();
-;                       profile.EditShow();
+                        ; profile.EditShow();
                         _loginEditBot.SendTextMessageAsync(id, "Выберите что хотите изменить");
                         _loginEditBot.SendTextMessageAsync(id, profile.EditShow());
                         cmd[id] = new Command(commandList["edit"]);
@@ -91,7 +96,7 @@ namespace login_edit_591_12
                         if (idDict[id] != null)
                             _loginEditBot.SendTextMessageAsync(id, profile.Info((int)idDict[id]));
                         else
-                            _loginEditBot.SendTextMessageAsync(id, "Авторизуйтесь");
+                            _loginEditBot.SendTextMessageAsync(id, "Авторизуйтесь (Команда /login)");
                         break;
                     }
                 case "/login":
@@ -103,6 +108,39 @@ namespace login_edit_591_12
                             msg[id].Clear();
                             _loginEditBot.SendTextMessageAsync(id, "Введите логин: ");
                             cmd[id] = new Command(commandList["login"]);
+                        }
+                        break;
+                    }
+                case "/delete":
+                    {
+                        try
+                        {
+                            using (loginEditDatabaseContext db = new loginEditDatabaseContext())
+                            {
+                                if (idDict[id] != null)
+                                {
+                                    UserInfo user = db.UserInfos.Single(e => e.IdUser == idDict[id]);
+                                    if (user != null)
+                                    {
+                                        db.UserInfos.Remove(user);
+                                        idDict[id] = null;
+                                        db.SaveChanges();
+                                    }
+                                    _loginEditBot.SendTextMessageAsync(id, "Пользователь успешно удалён");
+                                    _loginEditBot.SendTextMessageAsync(id, "Выберите команду:\n" +
+                                    "Авторизация: /login\n" +
+                                    "Регистрация /register");
+                                    break;
+                                }
+                                else
+                                {
+                                    _loginEditBot.SendTextMessageAsync(id, "Вы не авторизованы (Команда /login)");
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _loginEditBot.SendTextMessageAsync(id, "Возникла ошибка" + ex.Message);
                         }
                         break;
                     }
@@ -120,20 +158,27 @@ namespace login_edit_591_12
                         break;
                     }
                 default:
-                    switch(cmd[id]?.command ?? string.Empty)
+                    switch (cmd[id]?.command ?? string.Empty)
                     {
                         case "edit":
                             {
-                                if(cmd[id].counter == cmd[id].steps)
+                                if (cmd[id].counter == cmd[id].steps)
                                 {
                                     try
                                     {
                                         if (int.Parse(msg[id][0]) == 6)
                                             profile.Edit((int)idDict[id], int.Parse(msg[id][0]),
-                                               new DateTime(int.Parse(msg[id][3]), int.Parse(msg[id][2]), int.Parse(msg[id][1])));
+                                               new DateTime(int.Parse(msg[id][3]), 
+                                               int.Parse(msg[id][2]), 
+                                               int.Parse(msg[id][1])));
                                         else
                                             profile.Edit((int)idDict[id], int.Parse(msg[id][0]), msg[id][1]);
                                         _loginEditBot.SendTextMessageAsync(id, "Данные успешно изменены");
+                                        _loginEditBot.SendTextMessageAsync(id, "Выберите команду\n" +
+                                        "Просмотр информации о профиле: /info\n" +
+                                        "Изменение информации: /edit\n" +
+                                        "Удалить себя: /delete\n" +
+                                        "Выход: /sign_out");
                                     }
                                     catch (Exception ex)
                                     {
@@ -143,10 +188,10 @@ namespace login_edit_591_12
                                 }
                                 else
                                 {
-                                    if(cmd[id].counter == 1)
+                                    if (cmd[id].counter == 1)
                                     {
                                         if (int.Parse(msg[id][0]) == 6)
-                                        { 
+                                        {
                                             cmd[id].steps += 2;
                                             _loginEditBot.SendTextMessageAsync(id, "Введите день");
                                             cmd[id].counter++;
@@ -156,35 +201,38 @@ namespace login_edit_591_12
                                         cmd[id].counter++;
                                         break;
                                     }
-                                    if(cmd[id].counter == 2)
+                                    if (cmd[id].counter == 2)
                                     {
                                         _loginEditBot.SendTextMessageAsync(id, "Введите месяц в цифровом формате");
                                         cmd[id].counter++;
                                         break;
                                     }
-                                    if(cmd[id].counter == 3)
+                                    if (cmd[id].counter == 3)
                                     {
                                         _loginEditBot.SendTextMessageAsync(id, "Введите год");
                                         cmd[id].counter++;
                                         break;
                                     }
                                 }
-                                break; 
+                                break;
                             }
                         case "login":
                             {
-                                if(cmd[id].counter == cmd[id].steps)
+                                if (cmd[id].counter == cmd[id].steps)
                                 {
                                     try
                                     {
                                         idDict[id] = profile.Question_Answer(msg[id][2], msg[id][3]);
                                         if (idDict[id] == null)
-                                            _loginEditBot.SendTextMessageAsync(id, "Неправильный ответ");
+                                            _loginEditBot.SendTextMessageAsync(id, "Неправильный ответ.\n" +
+                                                "Введите команду ещё раз.");
                                         else
                                         {
                                             _loginEditBot.SendTextMessageAsync(id, "Вы успешно вошли");
                                             _loginEditBot.SendTextMessageAsync(id, "Выберите команду\n" +
-                                                "Просмотрт информации о профиле: /info\n" +
+                                                "Просмотр информации о профиле: /info\n" +
+                                                "Изменение информации: /edit\n" +
+                                                "Удалить себя: /delete\n" +
                                                 "Выход: /sign_out");
                                         }
                                     }
@@ -195,15 +243,15 @@ namespace login_edit_591_12
                                     }
                                     break;
                                 }
-                                else 
+                                else
                                 {
-                                    if(cmd[id].counter == 1)
+                                    if (cmd[id].counter == 1)
                                     {
                                         _loginEditBot.SendTextMessageAsync(id, "Введите пароль");
                                         cmd[id].counter++;
                                         break;
                                     }
-                                    if(cmd[id].counter == 2)
+                                    if (cmd[id].counter == 2)
                                     {
                                         try
                                         {
@@ -215,7 +263,7 @@ namespace login_edit_591_12
                                         catch (Exception ex)
                                         {
                                             Console.WriteLine(ex.Message);
-                                            _loginEditBot.SendTextMessageAsync(id, "Ошибка");
+                                            _loginEditBot.SendTextMessageAsync(id, "Ошибка.\n Введите команду ещё раз.");
                                         }
                                         break;
                                     }
@@ -224,11 +272,12 @@ namespace login_edit_591_12
                             }
                         case "register":
                             {
-                                if(cmd[id].counter == cmd[id].steps)
+                                if (cmd[id].counter == cmd[id].steps)
                                 {
-                                    if(!int.TryParse(msg[id][3], out int question_number))
+                                    if (!int.TryParse(msg[id][3], out int question_number))
                                     {
-                                        _loginEditBot.SendTextMessageAsync(id, "Неправильно выбран вопрос, попробуйте еще раз");
+                                        _loginEditBot.SendTextMessageAsync(id, "Неправильно выбран вопрос, попробуйте еще раз\n" +
+                                            "Введите команду ещё раз.");
                                         return;
                                     }
                                     try
@@ -237,7 +286,8 @@ namespace login_edit_591_12
                                         _loginEditBot.SendTextMessageAsync(id, "Пользователь успешно зарегестрирован и авторизован");
                                         _loginEditBot.SendTextMessageAsync(id, "Выберите команду:\n" +
                                             "Просмотр информации о пользователе: /info\n" +
-                                            "Редактирование информации: /edit\n" +
+                                            "Изменение информации: /edit\n" +
+                                            "Удалить себя: /delete\n" +
                                             "Выход: /sign_out");
 
                                     }
@@ -251,26 +301,26 @@ namespace login_edit_591_12
                                 }
                                 else
                                 {
-                                    if(cmd[id].counter == 1)
+                                    if (cmd[id].counter == 1)
                                     {
                                         cmd[id].counter++;
                                         _loginEditBot.SendTextMessageAsync(id, "Введите пароль:");
                                         break;
                                     }
-                                    if(cmd[id].counter == 2)
+                                    if (cmd[id].counter == 2)
                                     {
                                         cmd[id].counter++;
                                         _loginEditBot.SendTextMessageAsync(id, "Введите телефон");
                                         break;
                                     }
-                                    if(cmd[id].counter == 3)
+                                    if (cmd[id].counter == 3)
                                     {
                                         cmd[id].counter++;
                                         _loginEditBot.SendTextMessageAsync(id, $"Выберете номер вопроса из списка:\n" +
                                             $"{dbStr.getQuestions()}");
                                         break;
                                     }
-                                    if(cmd[id].counter == 4)
+                                    if (cmd[id].counter == 4)
                                     {
                                         cmd[id].counter++;
                                         _loginEditBot.SendTextMessageAsync(id, "Введите ответ на вопрос: ");
